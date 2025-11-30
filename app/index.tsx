@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FirebaseError } from 'firebase/app';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getCountFromServer, query, setDoc, where } from 'firebase/firestore';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -94,7 +94,29 @@ export default function LoginScreen() {
     refreshUserProfile();
   };
 
-const assignTeam = () => TEAM_OPTIONS[Math.floor(Math.random() * TEAM_OPTIONS.length)];
+async function assignTeam(): Promise<{ key: TeamKey; name: string }> {
+  try {
+    const counts = await Promise.all(
+      TEAM_OPTIONS.map(async (team) => {
+        const teamQuery = query(collection(db, 'users'), where('teamKey', '==', team.key));
+        const snapshot = await getCountFromServer(teamQuery);
+        return {
+          team,
+          count: snapshot.data().count ?? 0,
+        };
+      })
+    );
+    const minCount = Math.min(...counts.map((entry) => entry.count));
+    const leastFilled = counts.filter((entry) => entry.count === minCount).map((entry) => entry.team);
+    if (leastFilled.length) {
+      return leastFilled[Math.floor(Math.random() * leastFilled.length)];
+    }
+  } catch {
+    // ignore query errors and fall back to random choice below
+  }
+
+  return TEAM_OPTIONS[Math.floor(Math.random() * TEAM_OPTIONS.length)];
+}
 
 const createUserRecord = async (
   userId: string,
@@ -145,7 +167,7 @@ const createUserRecord = async (
     try {
       if (isSignUp) {
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
-        const teamAssignment = assignTeam();
+        const teamAssignment = await assignTeam();
         await createUserRecord(credential.user.uid, {
           firstName: trimmedFirst,
           lastName: trimmedLast,
