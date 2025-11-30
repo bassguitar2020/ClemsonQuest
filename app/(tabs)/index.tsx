@@ -56,11 +56,14 @@ export default function HomeScreen() {
 
   const userTeam = useMemo(() => {
     if (!teams.length) return undefined;
+    if (userData?.teamKey) {
+      return teams.find((team) => team.key === userData.teamKey) ?? teams[0];
+    }
     if (userData?.team) {
       return teams.find((team) => team.name === userData.team) ?? teams[0];
     }
     return teams[0];
-  }, [teams, userData?.team]);
+  }, [teams, userData?.team, userData?.teamKey]);
 
   const TITLE = `${name} took a photo of someone wearing Clemson Orange`;
 
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
     padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 16,
     backgroundColor: 'transparent',
   },

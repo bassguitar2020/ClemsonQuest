@@ -36,16 +36,19 @@ export default function TeamsScreen() {
 
   const userTeam = useMemo(() => {
     if (!teams.length) return undefined;
+    if (userData?.teamKey) {
+      return teams.find((team) => team.key === userData.teamKey) ?? teams[0];
+    }
     if (userData?.team) {
       return teams.find((team) => team.name === userData.team) ?? teams[0];
     }
     return teams[0];
-  }, [teams, userData?.team]);
+  }, [teams, userData?.team, userData?.teamKey]);
 
   const rankedTeams: RankedTeam[] = useMemo(() => {
     if (!teams.length) return [];
     const sorted = [...teams].sort((a, b) => b.points - a.points);
-    const userPoints = userTeam?.points ?? sorted[0].points;
+    const userPoints = userTeam?.points ?? sorted[0]?.points ?? 0;
     return sorted.map((team, index) => {
       const isUserTeam = userTeam?.name === team.name;
       let trend = '';

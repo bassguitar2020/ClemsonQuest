@@ -19,13 +19,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useUser } from '@/contexts/user-context';
+import { useUser, type TeamKey } from '@/contexts/user-context';
 import { auth, db } from '@/lib/firebase';
 
 const CLEMSON_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@clemson\.edu$/i;
 const MIN_PASSWORD_LENGTH = 6;
 type AuthMode = 'signin' | 'signup';
-const TEAMS = ['Red Team', 'Yellow Team', 'Blue Team'] as const;
+const TEAM_OPTIONS: { key: TeamKey; name: string }[] = [
+  { key: 'red', name: 'Red Team' },
+  { key: 'yellow', name: 'Yellow Team' },
+  { key: 'blue', name: 'Blue Team' },
+];
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -90,22 +94,23 @@ export default function LoginScreen() {
     refreshUserProfile();
   };
 
-  const assignTeam = () => {
-    const index = Math.floor(Math.random() * TEAMS.length);
-    return TEAMS[index];
-  };
+const assignTeam = () => TEAM_OPTIONS[Math.floor(Math.random() * TEAM_OPTIONS.length)];
 
-  const createUserRecord = async (userId: string, profile: { firstName: string; lastName: string; email: string }) => {
-    const team = assignTeam();
-    const userRef = doc(db, 'users', userId);
-    await setDoc(userRef, {
-      ...profile,
-      team,
-      points: 0,
-      tasksCompleted: 0,
-      createdAt: new Date().toISOString(),
-    });
-  };
+const createUserRecord = async (
+  userId: string,
+  profile: { firstName: string; lastName: string; email: string },
+  team: { key: TeamKey; name: string }
+) => {
+  const userRef = doc(db, 'users', userId);
+  await setDoc(userRef, {
+    ...profile,
+    team: team.name,
+    teamKey: team.key,
+    points: 0,
+    tasksCompleted: 0,
+    createdAt: new Date().toISOString(),
+  });
+};
 
   const handleSubmit = async () => {
     if (!trimmedEmail) {
@@ -140,11 +145,12 @@ export default function LoginScreen() {
     try {
       if (isSignUp) {
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+        const teamAssignment = assignTeam();
         await createUserRecord(credential.user.uid, {
           firstName: trimmedFirst,
           lastName: trimmedLast,
           email: trimmedEmail,
-        });
+        }, teamAssignment);
         await ensureProfile(trimmedFirst, trimmedLast);
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);

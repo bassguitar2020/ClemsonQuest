@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable, Text } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
@@ -7,7 +7,12 @@ import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
+import { doc, increment, updateDoc } from 'firebase/firestore';
+
 import { useUser } from '@/contexts/user-context';
+import { db } from '@/lib/firebase';
+
+const QUEST_POINTS = 200;
 
 export default function PhotoQuestScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -18,7 +23,7 @@ export default function PhotoQuestScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { name, teams, setTeams } = useUser();
+  const { name, teams, setTeams, userData, userId } = useUser();
 
   const accent = useThemeColor({}, 'accent');
   const highlight = useThemeColor({}, 'tint');
@@ -29,22 +34,59 @@ export default function PhotoQuestScreen() {
   }, [permission]);
 
   const TITLE = `${name} took a photo of someone wearing Clemson Orange`;
-  const userTeam = teams.find(t => t.name == 'Blue Team')!;
+  const userTeam = useMemo(() => {
+    if (!teams.length) return undefined;
+    if (userData?.teamKey) {
+      return teams.find((team) => team.key === userData.teamKey) ?? teams[0];
+    }
+    if (userData?.team) {
+      return teams.find((team) => team.name === userData.team) ?? teams[0];
+    }
+    return teams[0];
+  }, [teams, userData?.team, userData?.teamKey]);
+
   const takePhoto = async () => {
     if (!cameraRef.current || !isCameraReady) return;
     const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
     setPhotoUri(photo.uri);
     setIsPreview(true);
 
+    if (userTeam) {
+      const updates: Promise<unknown>[] = [];
+      const scoresRef = doc(db, 'teamPoints', 'scores');
+      updates.push(
+        updateDoc(scoresRef, {
+          [userTeam.key]: increment(QUEST_POINTS),
+        })
+      );
 
-    setTeams((teams) => {
-      const newTeams = [...teams];
-      const idx = newTeams.indexOf(userTeam);
-      newTeams[idx].points += 250;
-      newTeams[idx].activity.push({ title: TITLE, timeAgo: 'just now' })
-      newTeams.sort((a, b) => b.points - a.points);
-      return newTeams;
-    })
+      if (userId) {
+        const userRef = doc(db, 'users', userId);
+        updates.push(
+          updateDoc(userRef, {
+            points: increment(QUEST_POINTS),
+            tasksCompleted: increment(1),
+          })
+        );
+      }
+
+      try {
+        await Promise.all(updates);
+      } catch {
+        // ignore update errors for now
+      }
+
+      setTeams((prev) =>
+        prev.map((team) =>
+          team.key === userTeam.key
+            ? {
+                ...team,
+                activity: [{ title: TITLE, timeAgo: 'just now' }, ...team.activity],
+              }
+            : team
+        )
+      );
+    }
 
     router.back();
     router.setParams({ status: "success" });
