@@ -328,6 +328,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  ctaButtonLarge: {
+    // larger vertical padding for prominent call-to-action buttons
+    paddingVertical: 18,
+  },
   ctaText: {
     fontSize: 18,
     fontWeight: '700',
