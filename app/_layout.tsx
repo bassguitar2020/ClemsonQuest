@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { type ReactNode, useEffect } from 'react';
 import 'react-native-reanimated';
+import '@/lib/firebase';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
