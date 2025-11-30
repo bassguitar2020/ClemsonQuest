@@ -12,7 +12,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { Link, useLocalSearchParams } from 'expo-router';
 
 export default function HomeScreen() {
-  const { name, firstName: profileFirstName, teams } = useUser();
+  const { name, firstName: profileFirstName, teams, userData } = useUser();
   const colorScheme = useColorScheme() ?? 'light';
   const firstName = profileFirstName || (name ? name.split(' ')[0] : 'Explorer');
   const insets = useSafeAreaInsets();
@@ -54,11 +54,17 @@ export default function HomeScreen() {
     [elevatedSurface]
   );
 
-  const userTeam = teams.find(t => t.name == 'Blue Team')!;
+  const userTeam = useMemo(() => {
+    if (!teams.length) return undefined;
+    if (userData?.team) {
+      return teams.find((team) => team.name === userData.team) ?? teams[0];
+    }
+    return teams[0];
+  }, [teams, userData?.team]);
 
   const TITLE = `${name} took a photo of someone wearing Clemson Orange`;
 
-  const isComplete = userTeam.activity.some(a => a.title == TITLE);
+  const isComplete = userTeam?.activity.some((a) => a.title === TITLE) ?? false;
 
   return (
     <>
@@ -68,22 +74,23 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <View style={[styles.headerCard, { backgroundColor: elevatedSurface }]}>
-          <View>
+        <View style={styles.headerCard}>
+          <View style={styles.headerTextGroup}>
             <ThemedText type="title" style={styles.appTitle}>
               ClemsonQuest
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: subtleText }]}>
-              Fall 2025 • Week 3
-            </ThemedText>
           </View>
-          <View style={styles.teamInfo}>
-            <View style={[styles.teamChip, { borderColor: userTeam.color }]}>
-              <View style={[styles.teamDot, { backgroundColor: userTeam.color }]} />
-              <ThemedText type="defaultSemiBold">{userTeam.name}</ThemedText>
-            </View>
-            <ThemedText style={[styles.teamRank, { color: subtleText }]}>Rank #{teams.indexOf(userTeam) + 1}</ThemedText>
-          </View>
+            {userTeam && (
+              <View style={styles.teamInfo}>
+                <View style={[styles.teamChip, { borderColor: userTeam.color }]}>
+                  <View style={[styles.teamDot, { backgroundColor: userTeam.color }]} />
+                  <ThemedText type="defaultSemiBold">{userTeam.name}</ThemedText>
+                </View>
+                <ThemedText style={[styles.teamRank, { color: subtleText }]}>
+                  Rank #{teams.indexOf(userTeam) + 1}
+                </ThemedText>
+              </View>
+            )}
         </View>
 
         <View style={[styles.streakCard, { backgroundColor: streakSurface }]}>
@@ -122,7 +129,7 @@ export default function HomeScreen() {
             <MetaItem icon="star" label="150 pts" color={metaIconColor} />
             <MetaItem icon="schedule" label="1h 20m left" color={metaIconColor} />
           </View>
-          <Link href="/scan" style={[styles.ctaButton, { backgroundColor: accent }]}>
+          <Link href="/scan" style={[styles.ctaButton, styles.ctaButtonLarge, { backgroundColor: accent }]}>
             <ThemedText style={styles.ctaText} lightColor="#FFFFFF" darkColor="#FFFFFF">
               Start
             </ThemedText>
@@ -192,6 +199,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 16,
+    backgroundColor: 'transparent',
+  },
+  headerTextGroup: {
+    gap: 4,
+    alignItems: 'flex-start',
   },
   appTitle: {
     fontSize: 28,
@@ -306,14 +318,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   ctaButton: {
-    alignSelf: 'flex-start',
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    width: '100%',
+    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ctaText: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '700',
+    textAlign: 'center',
   },
   viewAll: {
     fontSize: 14,

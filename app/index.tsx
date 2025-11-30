@@ -10,6 +10,9 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FirebaseError } from 'firebase/app';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -17,20 +20,28 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useUser } from '@/contexts/user-context';
+import { auth, db } from '@/lib/firebase';
 
 const CLEMSON_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@clemson\.edu$/i;
+const MIN_PASSWORD_LENGTH = 6;
+type AuthMode = 'signin' | 'signup';
+const TEAMS = ['Red Team', 'Yellow Team', 'Blue Team'] as const;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { firstName, lastName, email, setUserProfile } = useUser();
+  const { firstName, lastName, email, refreshUserProfile } = useUser();
   const lastNameInputRef = useRef<TextInput>(null);
   const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [formValues, setFormValues] = useState({
     firstName,
     lastName,
     email,
+    password: '',
   });
   const [error, setError] = useState('');
+  const [isSubmitting, setSubmitting] = useState(false);
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
 
@@ -47,6 +58,7 @@ export default function LoginScreen() {
       firstName,
       lastName,
       email,
+      password: '',
     });
   }, [email, firstName, lastName]);
 
@@ -57,37 +69,118 @@ export default function LoginScreen() {
     }
   };
 
+  const isSignUp = authMode === 'signup';
   const trimmedFirst = formValues.firstName.trim();
   const trimmedLast = formValues.lastName.trim();
   const trimmedEmail = formValues.email.trim().toLowerCase();
+  const trimmedPassword = formValues.password.trim();
+  const hasValidEmail = CLEMSON_EMAIL_REGEX.test(trimmedEmail);
+  const meetsPasswordRequirement = trimmedPassword.length >= MIN_PASSWORD_LENGTH;
   const isSubmitDisabled =
-    !trimmedFirst || !trimmedLast || !CLEMSON_EMAIL_REGEX.test(trimmedEmail);
+    isSubmitting ||
+    !hasValidEmail ||
+    !meetsPasswordRequirement ||
+    (isSignUp && (!trimmedFirst || !trimmedLast));
 
-  const handleContinue = () => {
-    if (!trimmedFirst) {
-      setError('Please enter your first name.');
-      return;
-    }
-    if (!trimmedLast) {
-      setError('Please enter your last name.');
-      return;
-    }
+  const ensureProfile = async (displayFirst: string, displayLast: string) => {
+    if (!auth.currentUser) return;
+    const desiredDisplay = [displayFirst, displayLast].filter(Boolean).join(' ').trim();
+    if (!desiredDisplay || auth.currentUser.displayName === desiredDisplay) return;
+    await updateProfile(auth.currentUser, { displayName: desiredDisplay });
+    refreshUserProfile();
+  };
+
+  const assignTeam = () => {
+    const index = Math.floor(Math.random() * TEAMS.length);
+    return TEAMS[index];
+  };
+
+  const createUserRecord = async (userId: string, profile: { firstName: string; lastName: string; email: string }) => {
+    const team = assignTeam();
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      ...profile,
+      team,
+      points: 0,
+      tasksCompleted: 0,
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  const handleSubmit = async () => {
     if (!trimmedEmail) {
       setError('Please enter your Clemson email.');
       return;
     }
-    if (!CLEMSON_EMAIL_REGEX.test(trimmedEmail)) {
+    if (!hasValidEmail) {
       setError('Use a Clemson email that ends with @clemson.edu.');
       return;
     }
+    if (!trimmedPassword) {
+      setError('Please enter your password.');
+      return;
+    }
+    if (!meetsPasswordRequirement) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (isSignUp) {
+      if (!trimmedFirst) {
+        setError('Please enter your first name.');
+        return;
+      }
+      if (!trimmedLast) {
+        setError('Please enter your last name.');
+        return;
+      }
+    }
 
     setError('');
-    setUserProfile({
-      firstName: trimmedFirst,
-      lastName: trimmedLast,
-      email: trimmedEmail,
-    });
-    router.replace('/(tabs)');
+    setSubmitting(true);
+    try {
+      if (isSignUp) {
+        const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+        await createUserRecord(credential.user.uid, {
+          firstName: trimmedFirst,
+          lastName: trimmedLast,
+          email: trimmedEmail,
+        });
+        await ensureProfile(trimmedFirst, trimmedLast);
+      } else {
+        await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+      }
+      router.replace('/(tabs)');
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        switch (err.code) {
+          case 'auth/user-not-found':
+            setError('No account found for that email. Try signing up.');
+            break;
+          case 'auth/invalid-credential':
+          case 'auth/wrong-password':
+            setError('Incorrect password. Please try again.');
+            break;
+          case 'auth/invalid-email':
+            setError('That email address looks invalid. Double-check it and try again.');
+            break;
+          case 'auth/network-request-failed':
+            setError('Network error. Check your connection and try again.');
+            break;
+          case 'auth/email-already-in-use':
+            setError('That email is already registered. Try signing in instead.');
+            break;
+          case 'auth/too-many-requests':
+            setError('Too many attempts. Please wait and try again later.');
+            break;
+          default:
+            setError('Unable to sign in right now. Please try again.');
+        }
+      } else {
+        setError('Unexpected error. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const contentStyle = useMemo(
@@ -117,55 +210,107 @@ export default function LoginScreen() {
             <ThemedText style={styles.subtitle}>
               Sign in to start connecting with fellow students.
             </ThemedText>
-            <TextInput
-              placeholder="First name"
-              placeholderTextColor={Colors[colorScheme].icon}
-              value={formValues.firstName}
-              onChangeText={handleChange('firstName')}
-              onSubmitEditing={() => lastNameInputRef.current?.focus()}
-              returnKeyType="next"
-              autoCapitalize="words"
-              autoComplete="given-name"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBackground,
-                  color: Colors[colorScheme].text,
-                  borderColor: accentColor,
-                },
-              ]}
-            />
-            <TextInput
-              ref={lastNameInputRef}
-              placeholder="Last name"
-              placeholderTextColor={Colors[colorScheme].icon}
-              value={formValues.lastName}
-              onChangeText={handleChange('lastName')}
-              onSubmitEditing={() => emailInputRef.current?.focus()}
-              returnKeyType="next"
-              autoCapitalize="words"
-              autoComplete="family-name"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBackground,
-                  color: Colors[colorScheme].text,
-                  borderColor: accentColor,
-                },
-              ]}
-            />
+            <View style={styles.modeSwitch}>
+              {(['signin', 'signup'] as AuthMode[]).map((mode) => {
+                const isActive = mode === authMode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => setAuthMode(mode)}
+                    style={[
+                      styles.modeButton,
+                      {
+                        backgroundColor: isActive ? buttonBackground : 'transparent',
+                        borderColor: buttonBackground,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.modeButtonText,
+                        { color: isActive ? '#FFFFFF' : buttonBackground },
+                      ]}
+                    >
+                      {mode === 'signin' ? 'Sign In' : 'Sign Up'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {isSignUp && (
+              <>
+                <TextInput
+                  placeholder="First name"
+                  placeholderTextColor={Colors[colorScheme].icon}
+                  value={formValues.firstName}
+                  onChangeText={handleChange('firstName')}
+                  onSubmitEditing={() => lastNameInputRef.current?.focus()}
+                  returnKeyType="next"
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: inputBackground,
+                      color: Colors[colorScheme].text,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                />
+                <TextInput
+                  ref={lastNameInputRef}
+                  placeholder="Last name"
+                  placeholderTextColor={Colors[colorScheme].icon}
+                  value={formValues.lastName}
+                  onChangeText={handleChange('lastName')}
+                  onSubmitEditing={() => emailInputRef.current?.focus()}
+                  returnKeyType="next"
+                  autoCapitalize="words"
+                  autoComplete="family-name"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: inputBackground,
+                      color: Colors[colorScheme].text,
+                      borderColor: accentColor,
+                    },
+                  ]}
+                />
+              </>
+            )}
             <TextInput
               ref={emailInputRef}
               placeholder="Clemson email"
               placeholderTextColor={Colors[colorScheme].icon}
               value={formValues.email}
               onChangeText={handleChange('email')}
-              onSubmitEditing={handleContinue}
-              returnKeyType="done"
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
+              returnKeyType="next"
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="email"
               keyboardType="email-address"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: inputBackground,
+                  color: Colors[colorScheme].text,
+                  borderColor: accentColor,
+                },
+              ]}
+            />
+            <TextInput
+              ref={passwordInputRef}
+              placeholder="Password"
+              placeholderTextColor={Colors[colorScheme].icon}
+              value={formValues.password}
+              onChangeText={handleChange('password')}
+              onSubmitEditing={handleSubmit}
+              returnKeyType="done"
+              secureTextEntry
+              textContentType="password"
               style={[
                 styles.input,
                 {
@@ -188,12 +333,18 @@ export default function LoginScreen() {
                   opacity: isSubmitDisabled ? 0.55 : 1,
                 },
               ]}
-              onPress={handleContinue}
+              onPress={handleSubmit}
               disabled={isSubmitDisabled}
               activeOpacity={0.9}
             >
               <ThemedText style={[styles.buttonText, { color: buttonTextColor }]}>
-                Continue
+                {isSubmitting
+                  ? authMode === 'signin'
+                    ? 'Signing in...'
+                    : 'Creating account...'
+                  : authMode === 'signin'
+                    ? 'Sign In'
+                    : 'Create Account'}
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -224,6 +375,20 @@ const styles = StyleSheet.create({
   },
   errorText: {
     textAlign: 'center',
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  modeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  modeButtonText: {
+    fontWeight: '600',
   },
   button: {
     borderRadius: 12,

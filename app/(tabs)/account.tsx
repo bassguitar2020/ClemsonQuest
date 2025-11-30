@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -9,8 +10,10 @@ import { useUser } from '@/contexts/user-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export default function AccountScreen() {
-  const { name, email, isLoading } = useUser();
+  const { name, email, isLoading, logout } = useUser();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [isSigningOut, setSigningOut] = useState(false);
 
   const cardSurface = useThemeColor(
     { light: '#FFFFFF', dark: 'rgba(255,255,255,0.05)' },
@@ -86,6 +89,25 @@ export default function AccountScreen() {
           You are signed in and ready to complete quests. Logging out will clear your saved info on
           this device.
         </ThemedText>
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: highlight }]}
+          disabled={isSigningOut}
+          activeOpacity={0.85}
+          onPress={async () => {
+            if (isSigningOut) return;
+            setSigningOut(true);
+            try {
+              await logout();
+              router.replace('/');
+            } finally {
+              setSigningOut(false);
+            }
+          }}
+        >
+          <ThemedText style={styles.logoutText} lightColor="#FFFFFF" darkColor="#FFFFFF">
+            {isSigningOut ? 'Logging out...' : 'Log Out'}
+          </ThemedText>
+        </TouchableOpacity>
       </ThemedView>
 
       <View style={styles.footer}>
@@ -158,6 +180,16 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  logoutButton: {
+    marginTop: 8,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     marginTop: 'auto',

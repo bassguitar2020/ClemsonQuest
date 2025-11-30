@@ -19,7 +19,7 @@ type RankedTeam = {
 };
 
 export default function TeamsScreen() {
-  const { teams } = useUser();
+  const { teams, userData } = useUser();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -34,7 +34,13 @@ export default function TeamsScreen() {
   const yourTeamHighlight =
     colorScheme === 'dark' ? 'rgba(82,45,128,0.28)' : 'rgba(82,45,128,0.12)';
 
-  const userTeam = teams.find((team) => team.name === 'Blue Team') ?? teams[0];
+  const userTeam = useMemo(() => {
+    if (!teams.length) return undefined;
+    if (userData?.team) {
+      return teams.find((team) => team.name === userData.team) ?? teams[0];
+    }
+    return teams[0];
+  }, [teams, userData?.team]);
 
   const rankedTeams: RankedTeam[] = useMemo(() => {
     if (!teams.length) return [];

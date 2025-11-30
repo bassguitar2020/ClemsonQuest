@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
   SetStateAction,
@@ -9,6 +8,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+import { auth, db } from '@/lib/firebase';
 
 export type Team = {
   name: string;
@@ -32,13 +35,56 @@ type UserContextValue = {
   email: string;
   isProfileHydrated: boolean;
   isLoading: boolean;
-  setUserProfile: (profile: UserProfile) => void;
   logout: () => Promise<void>;
   teams: Team[];
   setTeams: React.Dispatch<SetStateAction<Team[]>>;
+  refreshUserProfile: () => void;
+  userData: UserStats | null;
+};
+
+type UserStats = {
+  team: string;
+  points: number;
+  tasksCompleted: number;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
+
+const TEAM_NAME_LOOKUP: Record<string, string> = {
+  'blue': 'Blue Team',
+  'blue team': 'Blue Team',
+  'red': 'Red Team',
+  'red team': 'Red Team',
+  'yellow': 'Yellow Team',
+  'yellow team': 'Yellow Team',
+};
+
+function normalizeTeamName(name: unknown) {
+  if (typeof name !== 'string') return '';
+  const key = name.trim().toLowerCase();
+  if (!key) return '';
+  return TEAM_NAME_LOOKUP[key] ?? name;
+}
+
+function toUserProfile(firebaseUser: User | null): UserProfile {
+  if (!firebaseUser) {
+    return {
+      firstName: '',
+      lastName: '',
+      email: '',
+    };
+  }
+
+  const displayName = firebaseUser.displayName ?? '';
+  const displayParts = displayName.split(' ').filter(Boolean);
+  const [firstName = '', ...rest] = displayParts;
+
+  return {
+    firstName,
+    lastName: rest.join(' '),
+    email: firebaseUser.email ?? '',
+  };
+}
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>({
@@ -47,64 +93,61 @@ export function UserProvider({ children }: { children: ReactNode }) {
     email: '',
   });
   const [isProfileHydrated, setProfileHydrated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserStats | null>(null);
   const [teams, setTeams] = useState<Team[]>([
-  {
-      name: 'Orange Team',
-      points: 3050,
-      color: '#F56600',
-      activity: [
-        { title: 'Sarah completed "Library Photo"', timeAgo: '2m ago' },
-      ]
-    },
-  {
+    {
       name: 'Blue Team',
       points: 2850,
       color: '#2979FF',
-      activity: [
-        { title: 'Blue Team gained 200 pts', timeAgo: '5m ago' },
-      ]
+      activity: [{ title: 'Blue Team gained 200 pts', timeAgo: '5m ago' }],
     },
     {
-      name: 'Purple Team',
+      name: 'Red Team',
+      points: 3050,
+      color: '#E53935',
+      activity: [{ title: 'Jamie completed "Tillman Selfie"', timeAgo: '12m ago' }],
+    },
+    {
+      name: 'Yellow Team',
       points: 2720,
-      color: '#9C27B0',
-      activity: [
-
-      ]
+      color: '#FDD835',
+      activity: [],
     },
   ]);
 
   useEffect(() => {
-    AsyncStorage.getItem('cq:user-profile')
-      .then((stored) => {
-        if (!stored) return;
-        try {
-          const parsed = JSON.parse(stored) as Partial<UserProfile>;
-          setProfile((prev) => ({
-            firstName: parsed.firstName ?? prev.firstName,
-            lastName: parsed.lastName ?? prev.lastName,
-            email: parsed.email ?? prev.email,
-          }));
-        } catch {
-          // ignore malformed cache
-        }
-      })
-      .finally(() => setProfileHydrated(true));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setProfile(toUserProfile(firebaseUser));
+      setUserId(firebaseUser?.uid ?? null);
+      setProfileHydrated(true);
+    });
+
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
-    if (!isProfileHydrated) return;
-    const isEmptyProfile = !profile.firstName && !profile.lastName && !profile.email;
-    if (isEmptyProfile) {
-      AsyncStorage.removeItem('cq:user-profile').catch(() => {});
+    if (!userId) {
+      setUserData(null);
       return;
     }
-    AsyncStorage.setItem('cq:user-profile', JSON.stringify(profile)).catch(() => {});
-  }, [isProfileHydrated, profile]);
 
-  const setUserProfile = useCallback((nextProfile: UserProfile) => {
-    setProfile(nextProfile);
-  }, []);
+    const userRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setUserData(null);
+        return;
+      }
+      const data = snapshot.data();
+      setUserData({
+        team: normalizeTeamName(data.team),
+        points: Number(data.points ?? 0),
+        tasksCompleted: Number(data.tasksCompleted ?? 0),
+      });
+    });
+
+    return unsubscribe;
+  }, [userId]);
 
   const name = useMemo(() => {
     const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
@@ -114,12 +157,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const { firstName, lastName, email } = profile;
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem('cq:user-profile');
-    setProfile({
-      firstName: '',
-      lastName: '',
-      email: '',
-    });
+    await signOut(auth);
+  }, []);
+
+  const refreshUserProfile = useCallback(() => {
+    setProfile(toUserProfile(auth.currentUser));
   }, []);
 
   const value = useMemo(
@@ -130,12 +172,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       email,
       isProfileHydrated,
       isLoading: !isProfileHydrated,
-      setUserProfile,
       logout,
       teams,
       setTeams,
+      refreshUserProfile,
+      userData,
     }),
-    [email, firstName, isProfileHydrated, lastName, logout, name, setUserProfile, teams]
+    [email, firstName, isProfileHydrated, lastName, logout, name, refreshUserProfile, teams, userData]
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
