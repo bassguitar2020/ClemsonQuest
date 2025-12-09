@@ -1,3 +1,5 @@
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import {
   createContext,
   SetStateAction,
@@ -8,8 +10,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
 
 import { auth, db } from '@/lib/firebase';
 
@@ -24,6 +24,8 @@ export type Team = {
 };
 
 export type Activity = { title: string; timeAgo: string };
+
+type UserRole = 'player' | 'admin';
 
 type UserProfile = {
   firstName: string;
@@ -44,6 +46,8 @@ type UserContextValue = {
   refreshUserProfile: () => void;
   userData: UserStats | null;
   userId: string | null;
+  userRole: UserRole;
+  isAdmin: boolean;
 };
 
 type UserStats = {
@@ -51,6 +55,7 @@ type UserStats = {
   teamKey?: TeamKey;
   points: number;
   tasksCompleted: number;
+  role: UserRole;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
@@ -132,6 +137,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isProfileHydrated, setProfileHydrated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserStats | null>(null);
+  const userRole: UserRole = userData?.role ?? 'player';
+  const isAdmin = userRole === 'admin';
   const [teams, setTeams] = useState<Team[]>(() =>
     TEAM_ORDER.map((key) => ({
       key,
@@ -166,11 +173,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
       const data = snapshot.data();
       const teamInfo = normalizeTeamName(data.team);
+      const roleFromDoc = (data.role as UserRole) || 'player';
+
       setUserData({
         team: teamInfo.displayName,
         teamKey: teamInfo.key,
         points: Number(data.points ?? 0),
         tasksCompleted: Number(data.tasksCompleted ?? 0),
+        role: roleFromDoc,
       });
     });
 
@@ -225,6 +235,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       refreshUserProfile,
       userData,
       userId,
+      userRole,
+      isAdmin,
     }),
     [
       email,
@@ -237,6 +249,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       teams,
       userData,
       userId,
+      userRole,
+      isAdmin,
     ]
   );
 

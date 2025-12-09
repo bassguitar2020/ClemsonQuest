@@ -1,25 +1,25 @@
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { FirebaseError } from 'firebase/app';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { collection, doc, getCountFromServer, query, setDoc, where } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   TextInput,
-  View,
   TouchableOpacity,
+  View,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FirebaseError } from 'firebase/app';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, doc, getCountFromServer, query, setDoc, where } from 'firebase/firestore';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { useUser, type TeamKey } from '@/contexts/user-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useUser, type TeamKey } from '@/contexts/user-context';
 import { auth, db } from '@/lib/firebase';
 
 const CLEMSON_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@clemson\.edu$/i;
@@ -130,6 +130,7 @@ const createUserRecord = async (
     teamKey: team.key,
     points: 0,
     tasksCompleted: 0,
+    role: 'player',
     createdAt: new Date().toISOString(),
   });
 };
@@ -176,6 +177,20 @@ const createUserRecord = async (
         await ensureProfile(trimmedFirst, trimmedLast);
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+
+        if (trimmedEmail === 'admin@clemson.edu') {
+          const userRef = doc(db, 'users;, credential.user.uid');
+          await setDoc(
+            userRef,
+            {
+              firstName: 'Admin',
+              Lastname: 'User',
+              email: trimmedEmail,
+              role: 'admin',
+            },
+            { merge: true }
+          );
+        }
       }
       router.replace('/(tabs)');
     } catch (err) {

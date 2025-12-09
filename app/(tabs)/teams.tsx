@@ -107,25 +107,14 @@ export default function TeamsScreen() {
         <ThemedView style={[styles.summaryCard, { backgroundColor: cardSurface }]}>
           <View style={styles.summaryHeader}>
             <MaterialIcons name="emoji-events" size={28} color={highlight} />
-            <ThemedText type="title" style={styles.summaryTitle}>
+            <ThemedText type="title" style={[styles.summaryTitle, {textAlign: 'center'}]}>
               Team Standings
             </ThemedText>
+            <MaterialIcons name="emoji-events" size={28} color={highlight} />
           </View>
-          <ThemedText style={[styles.summarySubtitle, { color: subtleText }]}>
-            Track how each ClemsonQuest team is performing this week.
+          <ThemedText style={[styles.summarySubtitle, { color: subtleText }, {textAlign: 'center'}]}>
+            Check out the points earned in the team standings below!
           </ThemedText>
-          <View style={styles.metricRow}>
-            {teamMetrics.map((metric) => (
-              <View key={metric.label} style={styles.metricItem}>
-                <ThemedText type="defaultSemiBold" style={[styles.metricValue, { color: accent }]}>
-                  {metric.value}
-                </ThemedText>
-                <ThemedText style={[styles.metricLabel, { color: subtleText }]}>
-                  {metric.label}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
         </ThemedView>
 
         <ThemedView style={[styles.rankingCard, { backgroundColor: cardSurface }]}>

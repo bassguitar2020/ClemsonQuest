@@ -1,19 +1,29 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useUser } from '@/contexts/user-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { TextInput } from 'react-native';
+
+import { auth, db } from '@/lib/firebase';
+
 export default function AccountScreen() {
-  const { name, email, isLoading, logout } = useUser();
+  const { name, email, isLoading, logout, userId, refreshUserProfile } = useUser();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [isSigningOut, setSigningOut] = useState(false);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftName, setDraftName] = useState(name);
+  const [saving, setSaving] = useState(false);
 
   const cardSurface = useThemeColor(
     { light: '#FFFFFF', dark: 'rgba(255,255,255,0.05)' },
@@ -37,6 +47,33 @@ export default function AccountScreen() {
     ],
     [insets.bottom, insets.top]
   );
+
+  const onSaveName = async () => {
+    if (!userId) return;
+    const trimmed = draftName.trim();
+    if (!trimmed) return;
+
+    setSaving(true);
+    try {
+      const [first, ...rest] = trimmed.split(' ').filter(Boolean);
+      const last = rest.join(' ');
+
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: trimmed });
+      }
+
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        firstName: first,
+        lastName: last,
+      });
+
+      refreshUserProfile();
+      setIsEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -70,7 +107,45 @@ export default function AccountScreen() {
           <ThemedText type="defaultSemiBold" style={styles.detailLabel}>
             Name
           </ThemedText>
-          <ThemedText style={styles.detailValue}>{name}</ThemedText>
+          {isEditing ? (
+            <View style={{ flex: 1, alignItems: 'flex-end', gap: 8 }}>
+              <TextInput
+                value={draftName}
+                onChangeText={setDraftName}
+                autoCapitalize="words"
+                style={{
+                  minWidth: 180,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  textAlign: 'right',
+                  color: textColor,
+                  borderColor: dividerColor,
+                }}
+              />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setDraftName(name);
+                    setIsEditing(false);
+                  }}
+                  disabled={saving}
+                >
+                  <ThemedText style={{ fontSize: 14 }}>Cancel</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={onSaveName} disabled={saving}>
+                  <ThemedText style={{ fontSize: 14, color: accent }}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setIsEditing(true)}>
+              <ThemedText style={styles.detailValue}>{name}</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={[styles.separator, { backgroundColor: dividerColor }]} />
         <View style={styles.detailRow}>
