@@ -146,20 +146,22 @@ return (
             <View style={styles.headerRow}>
                 <MaterialIcons name="add-task" size={24} color={accent} />
                 <ThemedText type="subtitle" style={styles.cardTitle}>
-                    Create a quest
+                    Create Quests
             </ThemedText>
             </View>
             <TextInput
                 placeholder="Quest title"
+                placeholderTextColor={subtle}
                 value={title}
                 onChangeText={setTitle}
-                style={styles.input}
+                style={[styles.input, { color: subtle }]}
             />
             <TextInput
                 placeholder="Description (what should students do?)"
+                placeholderTextColor={subtle}
                 value={description}
                 onChangeText={setDescription}
-                style={[styles.input, styles.multilineInput]}
+                style={[styles.input, styles.multilineInput, { color: subtle }]}
                 multiline
             />
             <View style={styles.row}>
@@ -169,7 +171,7 @@ return (
                     keyboardType="numeric"
                     value={points}
                     onChangeText={setPoints}
-                    style={styles.input}
+                    style={[styles.input, {color: subtle}]}
                 />
             </View>
             <View style={styles.rowItem}>
@@ -178,7 +180,7 @@ return (
                     keyboardType="numeric"
                     value={hours}
                     onChangeText={setHours}
-                    style={styles.input}
+                    style={[styles.input, {color: subtle}]}
                 />
             </View>
             </View>
