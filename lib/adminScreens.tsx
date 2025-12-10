@@ -25,8 +25,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteObject, ref } from 'firebase/storage';
-import { db, storage } from '../../lib/firebase';
-import { useAdminUser } from '../../lib/useAdminUser';
+import { db, storage } from '@/lib/firebase';
+import { useAdminUser } from '@/lib/useAdminUser';
 
 type AdminTab = 'home' | 'quests' | 'account';
 
@@ -91,9 +91,9 @@ export default function AdminScreen() {
         </View>
 
         {/* Tab content */}
-        {tab === 'home' && <AdminHome />}
-        {tab === 'quests' && <AdminQuests />}
-        {tab === 'account' && <AdminAccount />}
+        {tab === 'home' && <AdminHomeScreen />}
+        {tab === 'quests' && <AdminQuestsScreen />}
+        {tab === 'account' && <AdminAccountScreen />}
         </SafeAreaView>
     );
 }
@@ -124,7 +124,7 @@ function AdminTabButton({
     );
 }
 
-function AdminHome() {
+export function AdminHomeScreen() {
     const [users, setUsers] = useState<UserRow[]>([]);
     const [quests, setQuests] = useState<Quest[]>([]);
     const [loading, setLoading] = useState(true);
@@ -391,7 +391,7 @@ function AdminHome() {
 }
 
 
-function AdminQuests() {
+export function AdminQuestsScreen() {
     const { user } = useAdminUser();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -633,7 +633,7 @@ function AdminQuests() {
 }
 
 
-function AdminAccount() {
+export function AdminAccountScreen() {
     const { user } = useAdminUser();
     const [displayName, setDisplayName] = useState(user?.displayName ?? '');
     const [email, setEmail] = useState(user?.email ?? '');

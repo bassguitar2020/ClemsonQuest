@@ -200,7 +200,11 @@ const createUserRecord = async (
           );
         }
       }
-      router.replace('/home');
+      if (trimmedEmail === 'admin@clemson.edu') {
+        router.replace('/admin-home');
+      } else {
+        router.replace('/home');
+      }
     } catch (err) {
       if (err instanceof FirebaseError) {
         switch (err.code) {

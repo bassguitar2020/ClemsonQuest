@@ -35,6 +35,9 @@ function Navigation() {
       <Stack initialRouteName="index">
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-home" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-quests" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-account" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
     </AuthGuard>
@@ -44,7 +47,7 @@ function Navigation() {
 function AuthGuard({ children }: { children: ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
-  const { firstName, lastName, email, isProfileHydrated } = useUser();
+  const { firstName, lastName, email, isProfileHydrated, isAdmin } = useUser();
 
   useEffect(() => {
     if (!isProfileHydrated) return;
@@ -56,9 +59,9 @@ function AuthGuard({ children }: { children: ReactNode }) {
     if (!isLoggedIn && !onAuthScreen) {
       router.replace('/');
     } else if (isLoggedIn && onAuthScreen) {
-      router.replace('/home');
+      router.replace(isAdmin ? '/admin-home' : '/home');
     }
-  }, [email, firstName, isProfileHydrated, lastName, router, segments]);
+  }, [email, firstName, isAdmin, isProfileHydrated, lastName, router, segments]);
 
   return children;
 }
