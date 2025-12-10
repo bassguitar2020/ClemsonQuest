@@ -4,12 +4,12 @@ import React from 'react';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { useUser } from '@/contexts/user-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useAdminUser } from '@/lib/useAdminUser';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { isAdmin } = useAdminUser();
+  const { isAdmin } = useUser();
 
   return (
     <Tabs
@@ -46,14 +46,14 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
         }}
       />
-      {isAdmin && (
-        <Tabs.Screen
+      <Tabs.Screen
         name="admin"
-        options={{ 
-          title: 'admin' 
+        options={{
+          title: 'Admin',
+          // Hide the tab entirely for non-admin users
+          href: isAdmin ? undefined : null,
         }}
       />
-      )}
     </Tabs>
   );
 }

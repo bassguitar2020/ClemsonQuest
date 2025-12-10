@@ -56,7 +56,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
     if (!isLoggedIn && !onAuthScreen) {
       router.replace('/');
     } else if (isLoggedIn && onAuthScreen) {
-      router.replace('/tabs');
+      router.replace('/home');
     }
   }, [email, firstName, isProfileHydrated, lastName, router, segments]);
 
