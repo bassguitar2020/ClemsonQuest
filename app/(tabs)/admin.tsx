@@ -251,7 +251,7 @@ function AdminQuests() {
             }
         } else {
             // Native (iOS/Android) – show system date/time picker
-            setShowDatePicker(true);
+            setShowDatePicker((prev) => !prev)
         }
     };
 
@@ -411,7 +411,9 @@ function AdminQuests() {
                     style={{ backgroundColor: '#ffffff' }}
                     onChange={(event, selectedDate) => {
                         // On Android, user can cancel -> selectedDate is undefined
-                        setShowDatePicker(false);
+                        if (Platform.OS === 'android') {
+                            setShowDatePicker(false);
+                        }
                         if (selectedDate) {
                             setExpiresAt(selectedDate);
                         }
