@@ -15,7 +15,9 @@ type Quest = {
     title: string;
     description: string;
     points: number;
-    expiresAt: Date;
+    difficulty: 'Easy' | 'Medium' | 'Hard' | string;
+    createdAt: any;
+    expiresAt: any;
 };
 
 export default function QuestsScreen() {
@@ -23,6 +25,7 @@ export default function QuestsScreen() {
     const insets = useSafeAreaInsets();
 
     const [quests, setQuests] = useState<Quest[]>([]);
+    const [loading, setLoading] = useState(true);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [points, setPoints] = useState('100');
@@ -48,26 +51,32 @@ export default function QuestsScreen() {
   // Subscribe to quests
     useEffect(() => {
     const q = query(collection(db, 'quests'), orderBy('expiresAt', 'asc'));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const now = Date.now();
-        const next: Quest[] = [];
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as any;
-            const expiresAt = data.expiresAt?.toDate?.() ?? new Date();
-            // only show active quests
-            if (expiresAt.getTime() <= now) return;
-            next.push({
-                id: docSnap.id,
-                title: data.title ?? 'Quest',
-                description: data.description ?? '',
-                points: Number(data.points ?? 0),
-                expiresAt,
-        });
-    });
-        setQuests(next);
+        const now = new Date();
+        const data: Quest[] = snapshot.docs
+            .map((doc) => {
+                const d = doc.data() as any;
+                return {
+                    id: doc.id,
+                    title: d.title ?? '(no title)',
+                    description: d.description ?? '',
+                    points: d.points ?? 0,
+                    difficulty: d.difficulty ?? 'Easy',
+                    createdAt: d.createdAt,
+                    expiresAt: d.expiresAt,
+                };
+            })
+            .filter((q) => {
+                if (!q.expiresAt) return true; // no expiration so always vis.
+                const exp = q.expiresAt.toDate ? q.expiresAt.toDate() : q.expiresAt;
+                return exp > now;
+            });
+        setQuests(data);
+        setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
 }, []);
 
     const createQuest = async () => {
