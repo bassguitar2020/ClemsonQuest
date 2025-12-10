@@ -4,6 +4,7 @@ import {
     addDoc,
     collection,
     doc,
+    increment,
     onSnapshot,
     orderBy,
     query,
@@ -14,6 +15,7 @@ import {
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Image,
     Platform,
     Pressable,
     ScrollView,
@@ -22,7 +24,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { db } from '../../lib/firebase';
+import { deleteObject, ref } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
 import { useAdminUser } from '../../lib/useAdminUser';
 
 type AdminTab = 'home' | 'quests' | 'account';
@@ -43,6 +46,22 @@ type Quest = {
     isActive: boolean;
     createdAt?: any;
     expiresAt?: any;
+};
+
+type PhotoSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+type PhotoSubmission = {
+    id: string;
+    userId: string;
+    userName?: string;
+    teamName?: string;
+    teamKey?: string;
+    title?: string;
+    status: PhotoSubmissionStatus;
+    points: number;
+    createdAt?: any;
+    photoUrl?: string;
+    storagePath?: string;
 };
 
 export default function AdminScreen() {
@@ -109,6 +128,7 @@ function AdminHome() {
     const [users, setUsers] = useState<UserRow[]>([]);
     const [quests, setQuests] = useState<Quest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [photoSubmissions, setPhotoSubmissions] = useState<PhotoSubmission[]>([]);
 
     useEffect(() => {
         const usersQuery = query(collection(db, 'users'), orderBy('displayName'))
@@ -154,11 +174,91 @@ function AdminHome() {
             setLoading(false);
         });
 
+        const submissionsQuery = query(collection(db, 'photoSubmissions'), orderBy('createdAt', 'desc'));
+        const unsubSubmissions = onSnapshot(submissionsQuery, (snap) => {
+            const list: PhotoSubmission[] = snap.docs
+                .map((d) => {
+                    const data = d.data() as any;
+                    return {
+                        id: d.id,
+                        userId: data.userId ?? '',
+                        userName: data.userName ?? '',
+                        teamName: data.teamName ?? '',
+                        teamKey: data.teamKey ?? undefined,
+                        title: data.title ?? '',
+                        status: (data.status as PhotoSubmissionStatus) ?? 'pending',
+                        points: Number(data.points ?? 0),
+                        createdAt: data.createdAt,
+                        photoUrl: data.photoUrl,
+                        storagePath: data.storagePath,
+                    };
+                })
+                .filter((s) => s.status === 'pending');
+            setPhotoSubmissions(list);
+        });
+
         return () => {
             unsubUsers();
             unsubQuests();
+            unsubSubmissions();
         };
     }, []);
+
+    const handleReviewSubmission = async (submission: PhotoSubmission, approve: boolean) => {
+        if (!submission.id || !submission.storagePath) return;
+
+        const submissionRef = doc(db, 'photoSubmissions', submission.id);
+        const updates: Promise<unknown>[] = [];
+        const points = submission.points || 0;
+
+        if (approve) {
+            if (submission.teamKey) {
+                const scoresRef = doc(db, 'teamPoints', 'scores');
+                updates.push(
+                    updateDoc(scoresRef, {
+                        [submission.teamKey]: increment(points),
+                    })
+                );
+            }
+
+            if (submission.userId) {
+                const userRef = doc(db, 'users', submission.userId);
+                updates.push(
+                    updateDoc(userRef, {
+                        points: increment(points),
+                        tasksCompleted: increment(1),
+                    })
+                );
+            }
+        }
+
+        updates.push(
+            updateDoc(submissionRef, {
+                status: approve ? 'approved' : 'rejected',
+                reviewedAt: serverTimestamp(),
+            })
+        );
+
+        const storageRef = ref(storage, submission.storagePath);
+
+        try {
+            await Promise.all(updates);
+        } finally {
+            try {
+                await deleteObject(storageRef);
+            } catch {
+                // ignore storage deletion errors
+            }
+        }
+    };
+
+    const handleApproveSubmission = (submission: PhotoSubmission) => {
+        void handleReviewSubmission(submission, true);
+    };
+
+    const handleRejectSubmission = (submission: PhotoSubmission) => {
+        void handleReviewSubmission(submission, false);
+    };
 
     if (loading) {
         return (
@@ -211,6 +311,78 @@ function AdminHome() {
                         <Text style={{ fontSize: 12, color: '#666' }}>
                             {q.difficulty} • {q.points} pts
                         </Text>
+                    </View>
+                ))
+            )}
+
+            <View style={{ height: 24 }} />
+
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
+                Photo Submissions Awaiting Review
+            </Text>
+            {photoSubmissions.length === 0 ? (
+                <Text>No pending photo submissions.</Text>
+            ) : (
+                photoSubmissions.map((sub) => (
+                    <View
+                        key={sub.id}
+                        style={{
+                            paddingVertical: 8,
+                            borderBottomColor: '#eee',
+                            borderBottomWidth: 1,
+                        }}
+                    >
+                        <Text style={{ fontWeight: '600' }}>{sub.title || 'Quest submission'}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>
+                            {(sub.userName || 'Unknown user') +
+                                ' • ' +
+                                (sub.teamName || 'Unknown team') +
+                                ` • ${sub.points} pts`}
+                        </Text>
+                        {sub.photoUrl ? (
+                            <Image
+                                source={{ uri: sub.photoUrl }}
+                                style={{
+                                    marginTop: 8,
+                                    borderRadius: 8,
+                                    width: '100%',
+                                    aspectRatio: 4 / 3,
+                                    backgroundColor: '#ddd',
+                                }}
+                            />
+                        ) : null}
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                marginTop: 8,
+                                columnGap: 8,
+                            }}
+                        >
+                            <Pressable
+                                onPress={() => handleApproveSubmission(sub)}
+                                style={{
+                                    flex: 1,
+                                    borderRadius: 999,
+                                    paddingVertical: 8,
+                                    alignItems: 'center',
+                                    backgroundColor: '#4caf50',
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '600' }}>Approve</Text>
+                            </Pressable>
+                            <Pressable
+                                onPress={() => handleRejectSubmission(sub)}
+                                style={{
+                                    flex: 1,
+                                    borderRadius: 999,
+                                    paddingVertical: 8,
+                                    alignItems: 'center',
+                                    backgroundColor: '#f44336',
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: '600' }}>Reject</Text>
+                            </Pressable>
+                        </View>
                     </View>
                 ))
             )}

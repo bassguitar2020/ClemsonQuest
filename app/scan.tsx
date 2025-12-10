@@ -7,10 +7,11 @@ import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { doc, increment, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 import { useUser } from '@/contexts/user-context';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 
 const QUEST_POINTS = 200;
 
@@ -51,47 +52,43 @@ export default function PhotoQuestScreen() {
     setPhotoUri(photo.uri);
     setIsPreview(true);
 
-    if (userTeam) {
-      const updates: Promise<unknown>[] = [];
-      const scoresRef = doc(db, 'teamPoints', 'scores');
-      updates.push(
-        updateDoc(scoresRef, {
-          [userTeam.key]: increment(QUEST_POINTS),
-        })
-      );
-
-      if (userId) {
-        const userRef = doc(db, 'users', userId);
-        updates.push(
-          updateDoc(userRef, {
-            points: increment(QUEST_POINTS),
-            tasksCompleted: increment(1),
-          })
-        );
-      }
-
-      try {
-        await Promise.all(updates);
-      } catch {
-        // ignore update errors for now
-      }
-
-      setTeams((prev) =>
-        prev.map((team) =>
-          team.key === userTeam.key
-            ? {
-                ...team,
-                activity: [{ title: TITLE, timeAgo: 'just now' }, ...team.activity],
-              }
-            : team
-        )
-      );
+    // If we don't have user context, just return after capture
+    if (!userId || !userTeam) {
+      router.back();
+      return;
     }
 
-    router.back();
-    router.setParams({ status: "success" });
+    try {
+      const response = await fetch(photo.uri);
+      const blob = await response.blob();
 
-    // onPhotoTaken(photo.uri);
+      const storagePath = `quest-submissions/${userId}/${Date.now()}.jpg`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, blob);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, 'photoSubmissions'), {
+        userId,
+        userName: name,
+        teamKey: userTeam.key,
+        teamName: userTeam.name,
+        points: QUEST_POINTS,
+        questType: 'clemson-orange',
+        title: 'Clemson Orange Quest',
+        description: 'Take a photo of someone wearing Clemson orange.',
+        status: 'pending',
+        photoUrl: downloadUrl,
+        storagePath,
+        createdAt: serverTimestamp(),
+      });
+
+      router.back();
+      router.setParams({ status: 'submitted' });
+    } catch {
+      router.back();
+      router.setParams({ status: 'error' });
+    }
   };
 
   if (!permission?.granted) {

@@ -51,12 +51,12 @@ function AuthGuard({ children }: { children: ReactNode }) {
     const isLoggedIn = Boolean(firstName || lastName || email);
     const rootSegment = segments[0];
     const inTabsGroup = rootSegment === '(tabs)';
-    const onAuthScreen = !rootSegment || rootSegment === 'index';
+    const onAuthScreen = !rootSegment || rootSegment === undefined;
 
     if (!isLoggedIn && !onAuthScreen) {
       router.replace('/');
     } else if (isLoggedIn && onAuthScreen) {
-      router.replace('/home');
+      router.replace('/tabs');
     }
   }, [email, firstName, isProfileHydrated, lastName, router, segments]);
 
