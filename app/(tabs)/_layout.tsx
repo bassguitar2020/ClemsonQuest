@@ -38,6 +38,7 @@ export default function TabLayout() {
         name="teams"
         options={{
           title: 'Teams',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.3.fill" color={color} />,
         }}
       />
@@ -55,6 +56,14 @@ export default function TabLayout() {
           title: 'Home',
           href: isAdmin ? undefined : null,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle.badge.checkmark" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin-reviews"
+        options={{
+          title: 'Reviews',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.seal" color={color} />,
         }}
       />
       <Tabs.Screen

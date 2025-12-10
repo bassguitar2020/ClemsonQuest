@@ -26,6 +26,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteObject, ref } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { useUser } from '@/contexts/user-context';
 import { useAdminUser } from '@/lib/useAdminUser';
 
 type AdminTab = 'home' | 'quests' | 'account';
@@ -125,27 +126,11 @@ function AdminTabButton({
 }
 
 export function AdminHomeScreen() {
-    const [users, setUsers] = useState<UserRow[]>([]);
     const [quests, setQuests] = useState<Quest[]>([]);
     const [loading, setLoading] = useState(true);
-    const [photoSubmissions, setPhotoSubmissions] = useState<PhotoSubmission[]>([]);
+    const { teams } = useUser();
 
     useEffect(() => {
-        const usersQuery = query(collection(db, 'users'), orderBy('displayName'))
-
-        const unsubUsers = onSnapshot(usersQuery, (snap) => {
-            setUsers(
-                snap.docs.map((d) => {
-                    const u = d.data() as any;
-                    return {
-                        id: d.id,
-                        displayName: u.displayName ?? '',
-                        email: u.email ?? '',
-                    };
-                })
-            );
-        });
-        
         const questsQuery = query(collection(db, 'quests'), orderBy('createdAt', 'desc'));
         const unsubQuests = onSnapshot(questsQuery, (snap) => {
             const now = new Date();
@@ -174,6 +159,80 @@ export function AdminHomeScreen() {
             setLoading(false);
         });
 
+        return () => {
+            unsubQuests();
+        };
+    }, []);
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator />
+            <Text>Loading admin data…</Text>
+            </View>
+        );
+    }
+
+    return (
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Team Scores</Text>
+            {teams.map((team) => (
+                <View
+                    key={team.key}
+                    style={{
+                        paddingVertical: 8,
+                        borderBottomColor: '#eee',
+                        borderBottomWidth: 1,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                    }}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 8 }}>
+                        <View
+                            style={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: 12,
+                                backgroundColor: team.color,
+                            }}
+                        />
+                        <Text style={{ fontWeight: '600' }}>{team.name}</Text>
+                    </View>
+                    <Text style={{ fontWeight: '700' }}>{team.points} pts</Text>
+                </View>
+            ))}
+
+            <View style={{ height: 24 }} />
+
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Active Quests</Text>
+            {quests.length === 0 ? (
+                <Text>No active quests.</Text>
+            ) : (
+                quests.map((q) => (
+                    <View
+                        key={q.id}
+                        style={{
+                            paddingVertical: 8,
+                            borderBottomColor: '#eee',
+                            borderBottomWidth: 1,
+                        }}
+                    >
+                        <Text style={{ fontWeight: '600' }}>{q.title}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>
+                            {q.difficulty} • {q.points} pts
+                        </Text>
+                    </View>
+                ))
+            )}
+        </ScrollView>
+    );
+}
+
+export function AdminReviewsScreen() {
+    const [photoSubmissions, setPhotoSubmissions] = useState<PhotoSubmission[]>([]);
+
+    useEffect(() => {
         const submissionsQuery = query(collection(db, 'photoSubmissions'), orderBy('createdAt', 'desc'));
         const unsubSubmissions = onSnapshot(submissionsQuery, (snap) => {
             const list: PhotoSubmission[] = snap.docs
@@ -198,8 +257,6 @@ export function AdminHomeScreen() {
         });
 
         return () => {
-            unsubUsers();
-            unsubQuests();
             unsubSubmissions();
         };
     }, []);
@@ -260,63 +317,8 @@ export function AdminHomeScreen() {
         void handleReviewSubmission(submission, false);
     };
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator />
-            <Text>Loading admin data…</Text>
-            </View>
-        );
-    }
-
     return (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Active Users</Text>
-            {users.length === 0 ? (
-                <Text>No users yet.</Text>
-            ) : (
-                users.map((u) => (
-                    <View
-                        key={u.id}
-                        style={{
-                            paddingVertical: 8,
-                            borderBottomColor: '#eee',
-                            borderBottomWidth: 1,
-                        }}
-                    >
-                        <Text style={{ fontWeight: '600' }}>{u.displayName}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>
-                            Team: {u.team || 'Unassigned'}
-                        </Text>
-                    </View>
-                ))
-            )}
-
-            <View style={{ height: 24 }} />
-
-            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Active Quests</Text>
-            {quests.length === 0 ? (
-                <Text>No active quests.</Text>
-            ) : (
-                quests.map((q) => (
-                    <View
-                        key={q.id}
-                        style={{
-                            paddingVertical: 8,
-                            borderBottomColor: '#eee',
-                            borderBottomWidth: 1,
-                        }}
-                    >
-                        <Text style={{ fontWeight: '600' }}>{q.title}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>
-                            {q.difficulty} • {q.points} pts
-                        </Text>
-                    </View>
-                ))
-            )}
-
-            <View style={{ height: 24 }} />
-
             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
                 Photo Submissions Awaiting Review
             </Text>

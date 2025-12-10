@@ -36,6 +36,7 @@ function Navigation() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="admin-home" options={{ headerShown: false }} />
+        <Stack.Screen name="admin-reviews" options={{ headerShown: false }} />
         <Stack.Screen name="admin-quests" options={{ headerShown: false }} />
         <Stack.Screen name="admin-account" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
