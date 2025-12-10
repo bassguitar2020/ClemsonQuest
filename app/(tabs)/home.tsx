@@ -102,7 +102,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.streakInfo}>
             <ThemedText type="defaultSemiBold" style={styles.streakTitle}>
-              7 Day Streak!
+              1 Day Streak!
             </ThemedText>
             <ThemedText style={[styles.subtitle, { color: subtleText }]}>
               Keep it up, {firstName}! Daily log-ins earn bonus points.
