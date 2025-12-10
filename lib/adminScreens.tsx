@@ -23,7 +23,7 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { deleteObject, ref } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useUser } from '@/contexts/user-context';
@@ -129,6 +129,7 @@ export function AdminHomeScreen() {
     const [quests, setQuests] = useState<Quest[]>([]);
     const [loading, setLoading] = useState(true);
     const { teams } = useUser();
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         const questsQuery = query(collection(db, 'quests'), orderBy('createdAt', 'desc'));
@@ -174,7 +175,13 @@ export function AdminHomeScreen() {
     }
 
     return (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+        <ScrollView
+            contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingTop: insets.top + 16,
+                paddingBottom: insets.bottom + 32,
+            }}
+        >
             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Team Scores</Text>
             {teams.map((team) => (
                 <View
@@ -231,6 +238,7 @@ export function AdminHomeScreen() {
 
 export function AdminReviewsScreen() {
     const [photoSubmissions, setPhotoSubmissions] = useState<PhotoSubmission[]>([]);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         const submissionsQuery = query(collection(db, 'photoSubmissions'), orderBy('createdAt', 'desc'));
@@ -318,7 +326,13 @@ export function AdminReviewsScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+        <ScrollView
+            contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingTop: insets.top + 16,
+                paddingBottom: insets.bottom + 32,
+            }}
+        >
             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
                 Photo Submissions Awaiting Review
             </Text>
@@ -480,8 +494,16 @@ export function AdminQuestsScreen() {
         }
     };
 
+    const insets = useSafeAreaInsets();
+
     return (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+        <ScrollView
+            contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingTop: insets.top + 16,
+                paddingBottom: insets.bottom + 32,
+            }}
+        >
             <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Create Quest</Text>
 
             {/* Title */}
