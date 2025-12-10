@@ -22,6 +22,7 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
@@ -29,6 +30,7 @@ export default function TabLayout() {
         name="quests"
         options={{
           title: 'Quests',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="bolt.fill" color={color} />,
         }}
       />
@@ -36,6 +38,7 @@ export default function TabLayout() {
         name="teams"
         options={{
           title: 'Teams',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.3.fill" color={color} />,
         }}
       />
@@ -43,15 +46,40 @@ export default function TabLayout() {
         name="account"
         options={{
           title: 'Account',
+          href: isAdmin ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="admin"
+        name="admin-home"
         options={{
-          title: 'Admin',
-          // Hide the tab entirely for non-admin users
+          title: 'Home',
           href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle.badge.checkmark" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin-reviews"
+        options={{
+          title: 'Reviews',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.seal" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin-quests"
+        options={{
+          title: 'Quests',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="flag.checkered.2.crossed" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin-account"
+        options={{
+          title: 'Account',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.square.filled.and.at.rectangle" color={color} />,
         }}
       />
     </Tabs>
