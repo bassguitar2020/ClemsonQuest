@@ -49,7 +49,9 @@ export default function TabLayout() {
       {isAdmin && (
         <Tabs.Screen
         name="admin"
-        options={{ title: 'admin' }}
+        options={{ 
+          title: 'admin' 
+        }}
       />
       )}
     </Tabs>

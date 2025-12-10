@@ -1,7 +1,19 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import {
+  Auth,
+  getAuth,
+  getReactNativePersistence,
+  initializeAuth,
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
+
+declare module 'firebase/auth' {
+  // Minimal declaration to satisfy TypeScript for React Native
+  export function getReactNativePersistence(storage: any): any;
+}
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -24,7 +36,20 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+let auth: Auth;
+
+if (Platform.OS === 'web') {
+  // Web can just use the default
+  auth = getAuth(app);
+} else {
+  // Native (iOS / Android) – use AsyncStorage persistence
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+}
+
+
+export { auth };
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export default app;

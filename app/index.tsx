@@ -124,8 +124,10 @@ const createUserRecord = async (
   team: { key: TeamKey; name: string }
 ) => {
   const userRef = doc(db, 'users', userId);
+  const displayName = `${profile.firstName} ${profile.lastName}`.trim();
   await setDoc(userRef, {
     ...profile,
+    displayName,
     team: team.name,
     teamKey: team.key,
     points: 0,
@@ -176,23 +178,29 @@ const createUserRecord = async (
         }, teamAssignment);
         await ensureProfile(trimmedFirst, trimmedLast);
       } else {
-        await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          trimmedEmail,
+          trimmedPassword
+        );
 
+        // Quick way to seed an admin account for testing
         if (trimmedEmail === 'admin@clemson.edu') {
-          const userRef = doc(db, 'users;, credential.user.uid');
+          const userRef = doc(db, 'users', credential.user.uid);
           await setDoc(
             userRef,
             {
               firstName: 'Admin',
-              Lastname: 'User',
+              lastName: 'User',
               email: trimmedEmail,
               role: 'admin',
+              displayName: 'Admin User',
             },
             { merge: true }
           );
         }
       }
-      router.replace('/(tabs)');
+      router.replace('/home');
     } catch (err) {
       if (err instanceof FirebaseError) {
         switch (err.code) {

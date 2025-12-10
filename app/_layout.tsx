@@ -1,14 +1,14 @@
+import '@/lib/firebase';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { type ReactNode, useEffect } from 'react';
 import 'react-native-reanimated';
-import '@/lib/firebase';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { UserProvider, useUser } from '@/contexts/user-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
   anchor: 'index',
@@ -56,7 +56,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
     if (!isLoggedIn && !onAuthScreen) {
       router.replace('/');
     } else if (isLoggedIn && onAuthScreen) {
-      router.replace('/(tabs)');
+      router.replace('/home');
     }
   }, [email, firstName, isProfileHydrated, lastName, router, segments]);
 
