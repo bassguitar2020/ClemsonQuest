@@ -1,13 +1,14 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { memo, useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { memo, useMemo } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useUser } from '@/contexts/user-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useUser } from "@/contexts/user-context";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useThemeColor } from "@/hooks/use-theme-color";
+import { useApprovedPhotoSubmissions } from "@/hooks/use-quests";
 
 type RankedTeam = {
   position: number;
@@ -19,76 +20,62 @@ type RankedTeam = {
 };
 
 export default function TeamsScreen() {
-  const { teams, userData } = useUser();
+  const { userData } = useUser();
+  const { data: submissions, isLoading } = useApprovedPhotoSubmissions();
+
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
 
   const cardSurface = useThemeColor(
-    { light: '#FFFFFF', dark: 'rgba(255,255,255,0.05)' },
-    'background'
+    { light: "#FFFFFF", dark: "rgba(255,255,255,0.05)" },
+    "background",
   );
-  const highlight = useThemeColor({}, 'tint');
-  const accent = useThemeColor({}, 'accent');
-  const subtleText = colorScheme === 'dark' ? '#D7CEFF' : '#6F5FA5';
-  const background = useThemeColor({ light: '#F4F3FA', dark: '#14101F' }, 'background');
-  const yourTeamHighlight =
-    colorScheme === 'dark' ? 'rgba(82,45,128,0.28)' : 'rgba(82,45,128,0.12)';
+  const highlight = useThemeColor({}, "tint");
+  const accent = useThemeColor({}, "accent");
+  const subtleText = colorScheme === "dark" ? "#D7CEFF" : "#6F5FA5";
+  const background = useThemeColor(
+    { light: "#F4F3FA", dark: "#14101F" },
+    "background",
+  );
 
-  const userTeam = useMemo(() => {
-    if (!teams.length) return undefined;
-    if (userData?.teamKey) {
-      return teams.find((team) => team.key === userData.teamKey) ?? teams[0];
-    }
-    if (userData?.team) {
-      return teams.find((team) => team.name === userData.team) ?? teams[0];
-    }
-    return teams[0];
-  }, [teams, userData?.team, userData?.teamKey]);
+  // -----------------------------
+  // BUILD TEAMS FROM SUBMISSIONS
+  // -----------------------------
+  const teams = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; key: string; points: number }
+    >();
 
-  const rankedTeams: RankedTeam[] = useMemo(() => {
-    if (!teams.length) return [];
-    const sorted = [...teams].sort((a, b) => b.points - a.points);
-    const userPoints = userTeam?.points ?? sorted[0]?.points ?? 0;
-    return sorted.map((team, index) => {
-      const isUserTeam = userTeam?.name === team.name;
-      let trend = '';
-      if (isUserTeam) {
-        trend = 'You';
-      } else {
-        const diff = team.points - userPoints;
-        if (diff === 0) {
-          trend = 'Tied with you';
-        } else if (diff > 0) {
-          trend = `+${diff.toLocaleString()} ahead`;
-        } else {
-          trend = `${Math.abs(diff).toLocaleString()} behind`;
-        }
+    for (const sub of submissions) {
+      if (!map.has(sub.teamKey)) {
+        map.set(sub.teamKey, {
+          key: sub.teamKey,
+          name: sub.teamName,
+          points: 0,
+        });
       }
+      map.get(sub.teamKey)!.points += sub.points;
+    }
 
-      return {
-        position: index + 1,
-        name: team.name,
-        points: team.points.toLocaleString(),
-        trend,
-        color: team.color,
-        isUserTeam,
-      };
-    });
-  }, [teams, userTeam]);
+    return Array.from(map.values());
+  }, [submissions]);
 
-  const activityCount = teams.reduce((count, team) => count + team.activity.length, 0);
-  const completionRate =
-    teams.length === 0
-      ? '0%'
-      : `${Math.round((teams.filter((team) => team.activity.length > 0).length / teams.length) * 100)}%`;
+  // -----------------------------
+  // RANK
+  // -----------------------------
+  const rankedTeams = useMemo(() => {
+    const sorted = [...teams].sort((a, b) => b.points - a.points);
 
-  const teamMetrics = useMemo(
-    () => [
-      { label: 'Daily Quest Completion', value: completionRate },
-      { label: 'Recent Actions Logged', value: activityCount.toString() },
-    ],
-    [activityCount, completionRate]
-  );
+    return sorted.map((t, i) => ({
+      position: i + 1,
+      name: t.name,
+      points: t.points.toLocaleString(),
+      trend: "",
+      color: t.key,
+      isUserTeam: userData?.teamKey == t.key,
+    }));
+  }, [teams, userData]);
 
   const containerStyle = useMemo(
     () => [
@@ -98,33 +85,50 @@ export default function TeamsScreen() {
         paddingBottom: insets.bottom + 24,
       },
     ],
-    [insets.bottom, insets.top]
+    [insets.bottom, insets.top],
   );
 
   return (
     <ThemedView style={[styles.root, { backgroundColor: background }]}>
-      <ScrollView contentContainerStyle={containerStyle} showsVerticalScrollIndicator={false}>
-        <ThemedView style={[styles.summaryCard, { backgroundColor: cardSurface }]}>
+      <ScrollView
+        contentContainerStyle={containerStyle}
+        showsVerticalScrollIndicator={false}
+      >
+        <ThemedView
+          style={[styles.summaryCard, { backgroundColor: cardSurface }]}
+        >
           <View style={styles.summaryHeader}>
             <MaterialIcons name="emoji-events" size={28} color={highlight} />
-            <ThemedText type="title" style={[styles.summaryTitle, {textAlign: 'center'}]}>
+            <ThemedText
+              type="title"
+              style={[styles.summaryTitle, { textAlign: "center" }]}
+            >
               Team Standings
             </ThemedText>
             <MaterialIcons name="emoji-events" size={28} color={highlight} />
           </View>
-          <ThemedText style={[styles.summarySubtitle, { color: subtleText }, {textAlign: 'center'}]}>
+
+          <ThemedText
+            style={[
+              styles.summarySubtitle,
+              { color: subtleText },
+              { textAlign: "center" },
+            ]}
+          >
             Check out the points earned in the team standings below!
           </ThemedText>
         </ThemedView>
 
-        <ThemedView style={[styles.rankingCard, { backgroundColor: cardSurface }]}>
+        <ThemedView
+          style={[styles.rankingCard, { backgroundColor: cardSurface }]}
+        >
           {rankedTeams.map((team) => (
             <TeamRow
               key={team.position}
               team={team}
               subtleColor={subtleText}
               leaderColor={highlight}
-              yourHighlight={yourTeamHighlight}
+              yourHighlight="transparent"
               yourAccent={accent}
             />
           ))}
@@ -148,10 +152,19 @@ const TeamRow = memo(function TeamRow({
   yourAccent: string;
 }) {
   const isLeader = team.position === 1;
-  const trendColor = team.isUserTeam ? yourAccent : isLeader ? leaderColor : subtleColor;
+  const trendColor = team.isUserTeam
+    ? yourAccent
+    : isLeader
+      ? leaderColor
+      : subtleColor;
 
   return (
-    <View style={[styles.teamRow, team.isUserTeam && { backgroundColor: yourHighlight }]}>
+    <View
+      style={[
+        styles.teamRow,
+        team.isUserTeam && { backgroundColor: yourHighlight },
+      ]}
+    >
       <View style={styles.teamLeft}>
         <View style={[styles.teamBadge, { backgroundColor: team.color }]} />
         <View>
@@ -159,7 +172,7 @@ const TeamRow = memo(function TeamRow({
             #{team.position} {team.name}
           </ThemedText>
           <ThemedText style={[styles.teamTrend, { color: trendColor }]}>
-            {team.isUserTeam ? 'You' : team.trend}
+            {team.isUserTeam ? "You" : team.trend}
           </ThemedText>
         </View>
       </View>
@@ -169,7 +182,11 @@ const TeamRow = memo(function TeamRow({
         </ThemedText>
         {isLeader && (
           <View style={[styles.leaderChip, { backgroundColor: leaderColor }]}>
-            <ThemedText lightColor="#FFFFFF" darkColor="#FFFFFF" style={styles.leaderText}>
+            <ThemedText
+              lightColor="#FFFFFF"
+              darkColor="#FFFFFF"
+              style={styles.leaderText}
+            >
               Leading
             </ThemedText>
           </View>
@@ -191,41 +208,41 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     gap: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
     shadowRadius: 18,
     elevation: 4,
   },
   summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   summaryTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   summarySubtitle: {
     fontSize: 16,
     lineHeight: 24,
   },
   metricRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 16,
   },
   metricItem: {
     gap: 6,
     flexShrink: 1,
-    flexBasis: '45%',
+    flexBasis: "45%",
   },
   metricValue: {
     fontSize: 20,
   },
   metricLabel: {
     fontSize: 13,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   rankingCard: {
@@ -237,14 +254,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 12,
   },
   teamLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     flex: 1,
   },
@@ -261,7 +278,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   teamRight: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     gap: 6,
   },
   teamPoints: {
@@ -274,8 +291,8 @@ const styles = StyleSheet.create({
   },
   leaderText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
 });
