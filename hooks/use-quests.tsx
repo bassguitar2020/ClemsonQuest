@@ -1,6 +1,6 @@
 import { db } from "@/lib/firebase";
-import { PhotoSubmission } from "@/types/PhotoSubmission";
 import { Quest } from "@/types/Quest";
+import { TeamScores } from "@/types/TeamScores";
 import {
   collection,
   orderBy,
@@ -85,30 +85,33 @@ export const useQuest = ({ id }: { id: string }) => {
   return { data, isLoading };
 };
 
-export const useApprovedPhotoSubmissions = () => {
-  const [data, setData] = useState<PhotoSubmission[]>([]);
+
+export const useTeamScores = () => {
+  const [data, setData] = useState<TeamScores | null>(null);
   const [isLoading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "photoSubmissions"),
-      where("status", "==", "approved"),
-    );
+    const ref = doc(db, "teamPoints", "scores");
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: PhotoSubmission[] = snapshot.docs.map((doc) => {
-        const d = doc.data() as any;
-        return {
-          id: doc.id,
-          ...d,
-        };
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
+      const d = snap.data() as any;
+
+      setData({
+        blue: d.blue ?? 0,
+        red: d.red ?? 0,
+        yellow: d.yellow ?? 0,
       });
 
-      setData(items);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   return { data, isLoading };

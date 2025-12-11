@@ -8,7 +8,7 @@ import { ThemedView } from "@/components/themed-view";
 import { useUser } from "@/contexts/user-context";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { useApprovedPhotoSubmissions } from "@/hooks/use-quests";
+import { useTeamScores } from "@/hooks/use-quests";
 
 type RankedTeam = {
   position: number;
@@ -19,63 +19,52 @@ type RankedTeam = {
   isUserTeam: boolean;
 };
 
-export default function TeamsScreen() {
-  const { userData } = useUser();
-  const { data: submissions, isLoading } = useApprovedPhotoSubmissions();
+export default function TeamScoresScreen() {
+  const { data: scores, isLoading } = useTeamScores();
 
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
 
   const cardSurface = useThemeColor(
     { light: "#FFFFFF", dark: "rgba(255,255,255,0.05)" },
-    "background",
+    "background"
   );
   const highlight = useThemeColor({}, "tint");
   const accent = useThemeColor({}, "accent");
   const subtleText = colorScheme === "dark" ? "#D7CEFF" : "#6F5FA5";
   const background = useThemeColor(
     { light: "#F4F3FA", dark: "#14101F" },
-    "background",
+    "background"
   );
 
   // -----------------------------
-  // BUILD TEAMS FROM SUBMISSIONS
+  // BUILD TEAM LIST FROM SCORES
   // -----------------------------
   const teams = useMemo(() => {
-    const map = new Map<
-      string,
-      { name: string; key: string; points: number }
-    >();
+    if (!scores) return [];
 
-    for (const sub of submissions) {
-      if (!map.has(sub.teamKey)) {
-        map.set(sub.teamKey, {
-          key: sub.teamKey,
-          name: sub.teamName,
-          points: 0,
-        });
-      }
-      map.get(sub.teamKey)!.points += sub.points;
-    }
-
-    return Array.from(map.values());
-  }, [submissions]);
+    return [
+      { key: "blue", name: "Blue Team", points: scores.blue },
+      { key: "red", name: "Red Team", points: scores.red },
+      { key: "yellow", name: "Yellow Team", points: scores.yellow },
+    ];
+  }, [scores]);
 
   // -----------------------------
-  // RANK
+  // RANK TEAMS
   // -----------------------------
   const rankedTeams = useMemo(() => {
-    const sorted = [...teams].sort((a, b) => b.points - a.points);
+    const sorted = [...teams].sort((a, b) => parseInt(b.points) - parseInt(a.points));
 
-    return sorted.map((t, i) => ({
-      position: i + 1,
-      name: t.name,
-      points: t.points.toLocaleString(),
+    return sorted.map((team, index) => ({
+      position: index + 1,
+      name: team.name,
+      points: team.points.toLocaleString(),
       trend: "",
-      color: t.key,
-      isUserTeam: userData?.teamKey == t.key,
+      color: team.key,
+      isUserTeam: false,
     }));
-  }, [teams, userData]);
+  }, [teams]);
 
   const containerStyle = useMemo(
     () => [
@@ -85,8 +74,16 @@ export default function TeamsScreen() {
         paddingBottom: insets.bottom + 24,
       },
     ],
-    [insets.bottom, insets.top],
+    [insets.bottom, insets.top]
   );
+
+  if (isLoading || !scores) {
+    return (
+      <ThemedView style={[styles.root, { backgroundColor: background }]}>
+        <ThemedText style={{ padding: 20 }}>Loading...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={[styles.root, { backgroundColor: background }]}>
@@ -94,9 +91,7 @@ export default function TeamsScreen() {
         contentContainerStyle={containerStyle}
         showsVerticalScrollIndicator={false}
       >
-        <ThemedView
-          style={[styles.summaryCard, { backgroundColor: cardSurface }]}
-        >
+        <ThemedView style={[styles.summaryCard, { backgroundColor: cardSurface }]}>
           <View style={styles.summaryHeader}>
             <MaterialIcons name="emoji-events" size={28} color={highlight} />
             <ThemedText
@@ -115,13 +110,11 @@ export default function TeamsScreen() {
               { textAlign: "center" },
             ]}
           >
-            Check out the points earned in the team standings below!
+            Live score updates from team challenges.
           </ThemedText>
         </ThemedView>
 
-        <ThemedView
-          style={[styles.rankingCard, { backgroundColor: cardSurface }]}
-        >
+        <ThemedView style={[styles.rankingCard, { backgroundColor: cardSurface }]}>
           {rankedTeams.map((team) => (
             <TeamRow
               key={team.position}
